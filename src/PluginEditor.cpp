@@ -47,7 +47,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     configureSlider(delaySlider, delayLabel, "Debounce (ms)");
     configureSlider(peakThreshSlider, peakThreshLabel, "Peak Thresh");
     configureSlider(downSampleSlider, downSampleLabel, "Downsample");
-    configureSlider(noteLengthSlider, noteLengthLabel, "Note Length (ms)");
+    configureSlider(noteLengthSlider, noteLengthLabel, "Max Note Length (s)");
     configureSlider(decaySlider, decayLabel, "Decay (s)");
 
     advancedToggle.setButtonText("Advanced");

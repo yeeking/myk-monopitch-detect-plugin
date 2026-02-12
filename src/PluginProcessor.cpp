@@ -172,6 +172,7 @@ void TestPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     pendingNote = -1;
     pendingVelocity = 0;
     pendingDetectionSample = -1;
+    noteOnTimestamps.fill(0);
 }
 
 void TestPluginAudioProcessor::releaseResources()
@@ -231,10 +232,12 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     const bool freeze = parameters.getRawParameterValue(paramFreeze)->load() > 0.5f;
 
     const float decayTimeSec = parameters.getRawParameterValue(paramDecayTime)->load();
+    const float maxNoteLengthSec = parameters.getRawParameterValue(paramNoteLengthMs)->load();
     const float ampScale = parameters.getRawParameterValue(paramAmpScale)->load();
     const int minVelocityParam = static_cast<int>(parameters.getRawParameterValue(paramMinVelocity)->load());
     const float noteDelayMs = parameters.getRawParameterValue(paramDelay)->load();
     const int64 decaySamples = static_cast<int64>(std::max(0.0f, decayTimeSec) * static_cast<float>(lastSampleRate));
+    const int64 maxNoteLengthSamples = static_cast<int64>(std::max(0.0f, maxNoteLengthSec) * static_cast<float>(lastSampleRate));
     const int64 noteDelaySamples = static_cast<int64>((std::max(0.0f, noteDelayMs) * 0.001f) * static_cast<float>(lastSampleRate));
 
     if (!settingsEqual(pitchSettings, lastPitchSettings))
@@ -274,6 +277,60 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     const int64 blockStartSample = sampleCounter;
     const int64 blockEndSample = sampleCounter + numSamples;
+#if JUCE_DEBUG
+    auto logMidiSend = [&](const char* type, int note, juce::uint8 velocity, int offset)
+    {
+        juce::Logger::writeToLog("MIDI OUT " + juce::String(type)
+            + " note=" + juce::String(note)
+            + " velocity=" + juce::String(static_cast<int>(velocity))
+            + " offset=" + juce::String(offset));
+    };
+#endif
+    auto clearNoteTimestamp = [&](int note)
+    {
+        if (note >= 0 && note < static_cast<int>(noteOnTimestamps.size()))
+            noteOnTimestamps[static_cast<size_t>(note)] = 0;
+    };
+
+    auto recordNoteTimestamp = [&](int note, int offset)
+    {
+        if (note >= 0 && note < static_cast<int>(noteOnTimestamps.size()))
+            noteOnTimestamps[static_cast<size_t>(note)] = static_cast<long>(blockStartSample + offset + 1);
+    };
+
+    auto sendExpiredNoteOffs = [&](int offset)
+    {
+        if (maxNoteLengthSamples <= 0)
+            return;
+
+        const int64 nowSample = blockStartSample + offset;
+        for (int note = 0; note < static_cast<int>(noteOnTimestamps.size()); ++note)
+        {
+            const long timestamp = noteOnTimestamps[static_cast<size_t>(note)];
+            if (timestamp <= 0)
+                continue;
+
+            const int64 elapsedSamples = (nowSample + 1) - static_cast<int64>(timestamp);
+            if (elapsedSamples < maxNoteLengthSamples)
+                continue;
+
+            midiMessages.addEvent(juce::MidiMessage::noteOff(1, note), offset);
+#if JUCE_DEBUG
+            logMidiSend("noteOff(timeout)", note, 0, offset);
+#endif
+            NoteEvent eventOff;
+            eventOff.note = note;
+            eventOff.velocity = 0.0f;
+            eventOff.noteOn = false;
+            eventOff.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
+            pushNoteEventFromAudioThread(eventOff);
+            noteOnTimestamps[static_cast<size_t>(note)] = 0;
+
+            if (currentActiveNote == note)
+                currentActiveNote = -1;
+        }
+    };
+
     auto sendNoteChange = [&](int note, juce::uint8 velocity, int offset)
     {
         if (note == currentActiveNote)
@@ -282,15 +339,24 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         if (currentActiveNote >= 0)
         {
             midiMessages.addEvent(juce::MidiMessage::noteOff(1, currentActiveNote), offset);
+#if JUCE_DEBUG
+            logMidiSend("noteOff", currentActiveNote, 0, offset);
+#endif
+            clearNoteTimestamp(currentActiveNote);
             NoteEvent eventOff;
             eventOff.note = currentActiveNote;
             eventOff.velocity = 0.0f;
             eventOff.noteOn = false;
             eventOff.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOff);
+            sendExpiredNoteOffs(offset);
         }
 
         midiMessages.addEvent(juce::MidiMessage::noteOn(1, note, velocity), offset);
+#if JUCE_DEBUG
+        logMidiSend("noteOn", note, velocity, offset);
+#endif
+        recordNoteTimestamp(note, offset);
         NoteEvent eventOn;
         eventOn.note = note;
         eventOn.velocity = static_cast<float>(velocity) / 127.0f;
@@ -303,11 +369,19 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     pitchDetector.processBlock(monoBuffer.data(), numSamples, detections);
     bool detectedThisBlock = false;
+    const PitchDetector::Detection* selectedDetection = nullptr;
     for (const auto& detection : detections)
     {
         if (detection.freq <= 0.0f)
             continue;
 
+        if (selectedDetection == nullptr || detection.amp > selectedDetection->amp)
+            selectedDetection = &detection;
+    }
+
+    if (selectedDetection != nullptr)
+    {
+        const auto& detection = *selectedDetection;
         detectedThisBlock = true;
         lastDetectionSample = blockStartSample + detection.sampleOffset;
 
@@ -334,13 +408,14 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         if (noteDelaySamples == 0)
         {
             sendNoteChange(note, velocity, detection.sampleOffset);
-            continue;
         }
-
-        hasPendingNote = true;
-        pendingNote = note;
-        pendingVelocity = velocity;
-        pendingDetectionSample = blockStartSample + detection.sampleOffset;
+        else
+        {
+            hasPendingNote = true;
+            pendingNote = note;
+            pendingVelocity = velocity;
+            pendingDetectionSample = blockStartSample + detection.sampleOffset;
+        }
     }
 
     if (hasPendingNote)
@@ -380,12 +455,17 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         if (shouldTurnOff)
         {
             midiMessages.addEvent(juce::MidiMessage::noteOff(1, currentActiveNote), offOffset);
+#if JUCE_DEBUG
+            logMidiSend("noteOff", currentActiveNote, 0, offOffset);
+#endif
+            clearNoteTimestamp(currentActiveNote);
             NoteEvent eventOff;
             eventOff.note = currentActiveNote;
             eventOff.velocity = 0.0f;
             eventOff.noteOn = false;
             eventOff.timeSeconds = static_cast<double>(blockStartSample + offOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOff);
+            sendExpiredNoteOffs(offOffset);
             currentActiveNote = -1;
         }
     }
@@ -480,7 +560,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TestPluginAudioProcessor::cr
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramPeakThresh, "Peak Thresh", juce::NormalisableRange<float>(0.1f, 1.0f, 0.001f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramDownSample, "Downsample", 1, 32, 1));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramClarity, "Clarity", true));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramNoteLengthMs, "Note Length (ms)", juce::NormalisableRange<float>(10.0f, 500.0f, 1.0f), 60.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramNoteLengthMs, "Max Note Length (s)", juce::NormalisableRange<float>(3.0f, 10.0f, 0.1f), 5.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDecayTime, "Decay Time (s)", juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramMidiThru, "MIDI Thru", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramFreeze, "Freeze", false));

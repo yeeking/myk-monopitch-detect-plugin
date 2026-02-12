@@ -16,6 +16,20 @@ cmake_minimum_required(VERSION 3.15)
 
 project(myk-mono-pitchtracker VERSION 0.0.1)
 
+set (CMAKE_SYSTEM_VERSION 8.1) # windows
+set (CMAKE_OSX_DEPLOYMENT_TARGET 14.1) # mac
+# set (CMAKE_OSX_ARCHITECTURES arm64;x86_64) # mac
+
+
+# set(MYK_MACOS_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum macOS deployment target (for example: 13.0)")
+
+if(APPLE)
+#     if(MYK_MACOS_DEPLOYMENT_TARGET)
+#         set(CMAKE_OSX_DEPLOYMENT_TARGET "${MYK_MACOS_DEPLOYMENT_TARGET}" CACHE STRING "Minimum macOS deployment version" FORCE)
+#     endif()
+    message(STATUS "macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+
 # If you've installed JUCE somehow (via a package manager, or directly using the CMake install
 # target), you'll need to tell this project that it depends on the installed copy of JUCE. If you've
 # included JUCE directly in your source tree (perhaps as a submodule), you'll need to tell CMake to
@@ -44,9 +58,11 @@ juce_add_plugin(myk-mono-pitchtracker
     COMPANY_NAME Yee-King                          # Specify the name of the plugin's author
     IS_SYNTH FALSE                      # Is this a synth or an effect?
     NEEDS_MIDI_INPUT FALSE              # Does the plugin need midi input?
-    # NEEDS_MIDI_OUTPUT TRUE/FALSE              # Does the plugin need midi output?
-    # IS_MIDI_EFFECT TRUE/FALSE                 # Is this plugin a MIDI effect?
+    IS_MIDI_EFFECT FALSE                 # Is this plugin a MIDI effect?
     NEEDS_MIDI_OUTPUT TRUE
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT "Need access to Microphone"
+    HARDENED_RUNTIME_ENABLED TRUE
     # EDITOR_WANTS_KEYBOARD_FOCUS TRUE/FALSE    # Does the editor need keyboard focus?
     COPY_PLUGIN_AFTER_BUILD TRUE       # Should the plugin be installed to a default location after building?
     PLUGIN_MANUFACTURER_CODE Yeek               # A four-character manufacturer id with at least one upper-case character

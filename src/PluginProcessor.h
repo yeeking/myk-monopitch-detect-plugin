@@ -9,6 +9,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 #include <atomic>
 #include <vector>
 
@@ -101,6 +102,7 @@ private:
     int pendingNote = -1;
     juce::uint8 pendingVelocity = 0;
     int64 pendingDetectionSample = -1;
+    std::array<long, 127> noteOnTimestamps {};
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestPluginAudioProcessor)
