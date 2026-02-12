@@ -38,12 +38,13 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     configureSlider(initFreqSlider, initFreqLabel, "Init Freq");
     configureSlider(minFreqSlider, minFreqLabel, "Min Freq");
     configureSlider(maxFreqSlider, maxFreqLabel, "Max Freq");
-    configureSlider(execFreqSlider, execFreqLabel, "Block repeats");
+    configureSlider(execFreqSlider, execFreqLabel, "Cycle time");
     configureSlider(maxBinsSlider, maxBinsLabel, "Max Bins/Oct");
     configureSlider(medianSlider, medianLabel, "Median");
     configureSlider(ampThreshSlider, ampThreshLabel, "Amp Thresh");
     configureSlider(ampScaleSlider, ampScaleLabel, "Amp Scale");
     configureSlider(minVelocitySlider, minVelocityLabel, "Min Velocity");
+    configureSlider(delaySlider, delayLabel, "Debounce (ms)");
     configureSlider(peakThreshSlider, peakThreshLabel, "Peak Thresh");
     configureSlider(downSampleSlider, downSampleLabel, "Downsample");
     configureSlider(noteLengthSlider, noteLengthLabel, "Note Length (ms)");
@@ -72,6 +73,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     ampThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "ampThresh", ampThreshSlider);
     ampScaleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "ampScale", ampScaleSlider);
     minVelocityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "minVelocity", minVelocitySlider);
+    delayAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "delay", delaySlider);
     peakThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "peakThresh", peakThreshSlider);
     downSampleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "downSample", downSampleSlider);
     noteLengthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "noteLengthMs", noteLengthSlider);
@@ -133,7 +135,7 @@ void TestPluginAudioProcessorEditor::resized()
     row(ampThreshLabel, ampThreshSlider);
     row(ampScaleLabel, ampScaleSlider);
     row(minVelocityLabel, minVelocitySlider);
-    row(execFreqLabel, execFreqSlider);
+    row(delayLabel, delaySlider);
 
     controls.removeFromTop(6);
     auto advancedToggleRow = controls.removeFromTop(24);
@@ -142,6 +144,7 @@ void TestPluginAudioProcessorEditor::resized()
     if (advancedVisible)
     {
         controls.removeFromTop(6);
+        row(execFreqLabel, execFreqSlider);
         row(initFreqLabel, initFreqSlider);
         row(minFreqLabel, minFreqSlider);
         row(maxFreqLabel, maxFreqSlider);
@@ -178,6 +181,8 @@ void TestPluginAudioProcessorEditor::setAdvancedVisible(bool shouldShow)
 
     initFreqLabel.setVisible(advancedVisible);
     initFreqSlider.setVisible(advancedVisible);
+    execFreqLabel.setVisible(advancedVisible);
+    execFreqSlider.setVisible(advancedVisible);
     minFreqLabel.setVisible(advancedVisible);
     minFreqSlider.setVisible(advancedVisible);
     maxFreqLabel.setVisible(advancedVisible);

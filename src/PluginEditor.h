@@ -45,6 +45,7 @@ private:
     juce::Slider ampThreshSlider;
     juce::Slider ampScaleSlider;
     juce::Slider minVelocitySlider;
+    juce::Slider delaySlider;
     juce::Slider peakThreshSlider;
     juce::Slider downSampleSlider;
     juce::Slider noteLengthSlider;
@@ -59,6 +60,7 @@ private:
     juce::Label ampThreshLabel;
     juce::Label ampScaleLabel;
     juce::Label minVelocityLabel;
+    juce::Label delayLabel;
     juce::Label peakThreshLabel;
     juce::Label downSampleLabel;
     juce::Label noteLengthLabel;
@@ -79,6 +81,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ampThreshAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ampScaleAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> minVelocityAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> delayAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> peakThreshAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> downSampleAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> noteLengthAttachment;

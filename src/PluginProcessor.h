@@ -97,6 +97,10 @@ private:
     int64 logCounter = 0;
     int currentActiveNote = -1;
     int64 lastDetectionSample = -1;
+    bool hasPendingNote = false;
+    int pendingNote = -1;
+    juce::uint8 pendingVelocity = 0;
+    int64 pendingDetectionSample = -1;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestPluginAudioProcessor)

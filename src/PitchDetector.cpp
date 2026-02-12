@@ -319,7 +319,6 @@ bool PitchDetector::analyse(float& outFreq, float& outAmp, float& outClarity)
     const float safeAmp = std::max(0.0f, rawAmp);
     const float mappedAmp = std::log1p(ampCurve * safeAmp) / std::log1p(ampCurve);
     outAmp = juce::jlimit(0.0f, 1.0f, mappedAmp);
-    
 
     return true;
 }
