@@ -258,6 +258,7 @@ bool PitchDetector::analyse(float& outFreq, float& outClarity)
             nextAmpSum += buffer[static_cast<size_t>(idx + j)] * buffer[static_cast<size_t>(j)];
     }
 
+    
     while (prevAmpSum > maxSum && period > 0)
     {
         nextAmpSum = maxSum;
