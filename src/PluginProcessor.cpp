@@ -21,6 +21,7 @@ namespace
     constexpr const char* paramMedian = "median";
     constexpr const char* paramAmpThresh = "ampThresh";
     constexpr const char* paramAmpScale = "ampScale";
+    constexpr const char* paramMinVelocity = "minVelocity";
     constexpr const char* paramPeakThresh = "peakThresh";
     constexpr const char* paramDownSample = "downSample";
     constexpr const char* paramClarity = "clarity";
@@ -226,6 +227,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     const float decayTimeSec = parameters.getRawParameterValue(paramDecayTime)->load();
     const float ampScale = parameters.getRawParameterValue(paramAmpScale)->load();
+    const int minVelocityParam = static_cast<int>(parameters.getRawParameterValue(paramMinVelocity)->load());
     const int64 decaySamples = static_cast<int64>(std::max(0.0f, decayTimeSec) * static_cast<float>(lastSampleRate));
 
     if (!settingsEqual(pitchSettings, lastPitchSettings))
@@ -292,7 +294,9 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         const float scaledAmp = detection.amp * ampScale;
         const float velocityFloat = juce::jlimit(0.1f, 1.0f, scaledAmp);
         
-        const int velocity = juce::jlimit(1, 127, static_cast<int>(std::lround(velocityFloat * 127.0f)));
+        const int minVelocity = juce::jlimit(0, 64, minVelocityParam);
+        const int velocity = juce::jlimit(minVelocity, 127, static_cast<int>(std::lround(velocityFloat * 127.0f)));
+        const float eventVelocity = static_cast<float>(velocity) / 127.0f;
 
         const int offset = detection.sampleOffset;
 
@@ -303,7 +307,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
                 midiMessages.addEvent(juce::MidiMessage::noteOff(1, currentActiveNote), offset);
                 NoteEvent eventOff;
                 eventOff.note = currentActiveNote;
-                eventOff.velocity = velocityFloat;
+                eventOff.velocity = eventVelocity;
                 eventOff.noteOn = false;
                 eventOff.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
                 pushNoteEventFromAudioThread(eventOff);
@@ -312,7 +316,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             midiMessages.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)velocity), offset);
             NoteEvent eventOn;
             eventOn.note = note;
-            eventOn.velocity = velocityFloat;
+            eventOn.velocity = eventVelocity;
             eventOn.noteOn = true;
             eventOn.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOn);
@@ -434,11 +438,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout TestPluginAudioProcessor::cr
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramInitFreq, "Init Freq", juce::NormalisableRange<float>(20.0f, 2000.0f, 0.01f, 0.5f), 440.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramMinFreq, "Min Freq", juce::NormalisableRange<float>(20.0f, 1000.0f, 0.01f, 0.5f), 60.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramMaxFreq, "Max Freq", juce::NormalisableRange<float>(100.0f, 8000.0f, 0.01f, 0.5f), 2000.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramExecFreq, "Exec Freq", juce::NormalisableRange<float>(10.0f, 500.0f, 0.01f, 0.5f), 100.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramExecFreq, "Block repeats", juce::NormalisableRange<float>(10.0f, 500.0f, 0.01f, 0.5f), 100.0f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMaxBins, "Max Bins/Oct", 1, 32, 16));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMedian, "Median", 1, 31, 7));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpThresh, "Amp Thresh", juce::NormalisableRange<float>(0.0f, 0.2f, 0.0001f), 0.02f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpScale, "Amp Scale", juce::NormalisableRange<float>(0.0f, 5.0f, 0.001f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(paramMinVelocity, "Min Velocity", 0, 64, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramPeakThresh, "Peak Thresh", juce::NormalisableRange<float>(0.1f, 1.0f, 0.001f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramDownSample, "Downsample", 1, 32, 1));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramClarity, "Clarity", true));

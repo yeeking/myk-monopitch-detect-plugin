@@ -44,6 +44,7 @@ private:
     juce::Slider medianSlider;
     juce::Slider ampThreshSlider;
     juce::Slider ampScaleSlider;
+    juce::Slider minVelocitySlider;
     juce::Slider peakThreshSlider;
     juce::Slider downSampleSlider;
     juce::Slider noteLengthSlider;
@@ -57,11 +58,13 @@ private:
     juce::Label medianLabel;
     juce::Label ampThreshLabel;
     juce::Label ampScaleLabel;
+    juce::Label minVelocityLabel;
     juce::Label peakThreshLabel;
     juce::Label downSampleLabel;
     juce::Label noteLengthLabel;
     juce::Label decayLabel;
 
+    juce::ToggleButton advancedToggle;
     juce::ToggleButton clarityToggle;
     juce::ToggleButton midiThruToggle;
     juce::ToggleButton freezeToggle;
@@ -75,6 +78,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> medianAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ampThreshAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ampScaleAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> minVelocityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> peakThreshAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> downSampleAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> noteLengthAttachment;
@@ -83,6 +87,9 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> clarityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> midiThruAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment;
+
+    void setAdvancedVisible(bool shouldShow);
+    bool advancedVisible = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestPluginAudioProcessorEditor)
 };

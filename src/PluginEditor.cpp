@@ -38,16 +38,18 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     configureSlider(initFreqSlider, initFreqLabel, "Init Freq");
     configureSlider(minFreqSlider, minFreqLabel, "Min Freq");
     configureSlider(maxFreqSlider, maxFreqLabel, "Max Freq");
-    configureSlider(execFreqSlider, execFreqLabel, "Exec Freq");
+    configureSlider(execFreqSlider, execFreqLabel, "Block repeats");
     configureSlider(maxBinsSlider, maxBinsLabel, "Max Bins/Oct");
     configureSlider(medianSlider, medianLabel, "Median");
     configureSlider(ampThreshSlider, ampThreshLabel, "Amp Thresh");
     configureSlider(ampScaleSlider, ampScaleLabel, "Amp Scale");
+    configureSlider(minVelocitySlider, minVelocityLabel, "Min Velocity");
     configureSlider(peakThreshSlider, peakThreshLabel, "Peak Thresh");
     configureSlider(downSampleSlider, downSampleLabel, "Downsample");
     configureSlider(noteLengthSlider, noteLengthLabel, "Note Length (ms)");
     configureSlider(decaySlider, decayLabel, "Decay (s)");
 
+    advancedToggle.setButtonText("Advanced");
     clarityToggle.setButtonText("Clarity");
     midiThruToggle.setButtonText("MIDI Thru");
     freezeToggle.setButtonText("Freeze");
@@ -55,6 +57,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     freezeIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFE8C35E));
     freezeIndicator.setJustificationType(juce::Justification::centredRight);
 
+    addAndMakeVisible(advancedToggle);
     addAndMakeVisible(clarityToggle);
     addAndMakeVisible(midiThruToggle);
     addAndMakeVisible(freezeToggle);
@@ -68,6 +71,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     medianAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "median", medianSlider);
     ampThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "ampThresh", ampThreshSlider);
     ampScaleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "ampScale", ampScaleSlider);
+    minVelocityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "minVelocity", minVelocitySlider);
     peakThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "peakThresh", peakThreshSlider);
     downSampleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "downSample", downSampleSlider);
     noteLengthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "noteLengthMs", noteLengthSlider);
@@ -76,10 +80,16 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     clarityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(vts, "clarity", clarityToggle);
     midiThruAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(vts, "midiThru", midiThruToggle);
     freezeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(vts, "freeze", freezeToggle);
+    advancedToggle.onClick = [this]
+    {
+        setAdvancedVisible(advancedToggle.getToggleState());
+        resized();
+    };
 
     pianoRoll.setTimeWindowSeconds(8.0);
     levelMeter.setFrameRateHz(30);
     levelMeter.setDecaySeconds(1.5f);
+    setAdvancedVisible(false);
 
     setSize (960, 560);
     startTimerHz(60);
@@ -112,35 +122,82 @@ void TestPluginAudioProcessorEditor::resized()
 
     area.removeFromTop(6);
     auto controls = area.removeFromLeft(280);
+    constexpr int rowHeight = 30;
     auto row = [&](juce::Label& label, juce::Slider& slider)
     {
-        auto line = controls.removeFromTop(36);
+        auto line = controls.removeFromTop(rowHeight);
         label.setBounds(line.removeFromLeft(120));
         slider.setBounds(line);
     };
 
-    row(initFreqLabel, initFreqSlider);
-    row(minFreqLabel, minFreqSlider);
-    row(maxFreqLabel, maxFreqSlider);
-    row(execFreqLabel, execFreqSlider);
-    row(maxBinsLabel, maxBinsSlider);
-    row(medianLabel, medianSlider);
     row(ampThreshLabel, ampThreshSlider);
     row(ampScaleLabel, ampScaleSlider);
-    row(peakThreshLabel, peakThreshSlider);
-    row(downSampleLabel, downSampleSlider);
-    row(noteLengthLabel, noteLengthSlider);
-    row(decayLabel, decaySlider);
+    row(minVelocityLabel, minVelocitySlider);
+    row(execFreqLabel, execFreqSlider);
 
     controls.removeFromTop(6);
-    auto toggleRow = controls.removeFromTop(24);
-    clarityToggle.setBounds(toggleRow.removeFromLeft(90));
-    midiThruToggle.setBounds(toggleRow.removeFromLeft(110));
-    freezeToggle.setBounds(toggleRow.removeFromLeft(80));
-    freezeIndicator.setBounds(toggleRow);
+    auto advancedToggleRow = controls.removeFromTop(24);
+    advancedToggle.setBounds(advancedToggleRow);
+
+    if (advancedVisible)
+    {
+        controls.removeFromTop(6);
+        row(initFreqLabel, initFreqSlider);
+        row(minFreqLabel, minFreqSlider);
+        row(maxFreqLabel, maxFreqSlider);
+        row(maxBinsLabel, maxBinsSlider);
+        row(medianLabel, medianSlider);
+        row(peakThreshLabel, peakThreshSlider);
+        row(downSampleLabel, downSampleSlider);
+        row(noteLengthLabel, noteLengthSlider);
+        row(decayLabel, decaySlider);
+
+        controls.removeFromTop(6);
+        auto toggleRow = controls.removeFromTop(24);
+        clarityToggle.setBounds(toggleRow.removeFromLeft(90));
+        midiThruToggle.setBounds(toggleRow.removeFromLeft(110));
+        freezeToggle.setBounds(toggleRow.removeFromLeft(80));
+        freezeIndicator.setBounds(toggleRow);
+    }
+    else
+    {
+        clarityToggle.setBounds({});
+        midiThruToggle.setBounds({});
+        freezeToggle.setBounds({});
+        freezeIndicator.setBounds({});
+    }
 
     area.removeFromLeft(12);
     pianoRoll.setBounds(area);
+}
+
+void TestPluginAudioProcessorEditor::setAdvancedVisible(bool shouldShow)
+{
+    advancedVisible = shouldShow;
+    advancedToggle.setToggleState(advancedVisible, juce::dontSendNotification);
+
+    initFreqLabel.setVisible(advancedVisible);
+    initFreqSlider.setVisible(advancedVisible);
+    minFreqLabel.setVisible(advancedVisible);
+    minFreqSlider.setVisible(advancedVisible);
+    maxFreqLabel.setVisible(advancedVisible);
+    maxFreqSlider.setVisible(advancedVisible);
+    maxBinsLabel.setVisible(advancedVisible);
+    maxBinsSlider.setVisible(advancedVisible);
+    medianLabel.setVisible(advancedVisible);
+    medianSlider.setVisible(advancedVisible);
+    peakThreshLabel.setVisible(advancedVisible);
+    peakThreshSlider.setVisible(advancedVisible);
+    downSampleLabel.setVisible(advancedVisible);
+    downSampleSlider.setVisible(advancedVisible);
+    noteLengthLabel.setVisible(advancedVisible);
+    noteLengthSlider.setVisible(advancedVisible);
+    decayLabel.setVisible(advancedVisible);
+    decaySlider.setVisible(advancedVisible);
+    clarityToggle.setVisible(advancedVisible);
+    midiThruToggle.setVisible(advancedVisible);
+    freezeToggle.setVisible(advancedVisible);
+    freezeIndicator.setVisible(advancedVisible);
 }
 
 void TestPluginAudioProcessorEditor::timerCallback()
@@ -159,6 +216,6 @@ void TestPluginAudioProcessorEditor::timerCallback()
     levelMeter.setRMS(audioProcessor.getRmsLevel());
 
     const bool frozen = audioProcessor.getValueTreeState().getRawParameterValue("freeze")->load() > 0.5f;
-    freezeIndicator.setVisible(frozen);
+    freezeIndicator.setVisible(frozen && advancedVisible);
     pianoRoll.setFrozen(frozen);
 }
