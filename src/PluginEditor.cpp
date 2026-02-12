@@ -51,6 +51,8 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     configureSlider(decaySlider, decayLabel, "Decay (s)");
 
     advancedToggle.setButtonText("Advanced");
+    scrollToggle.setButtonText("Scroll");
+    scrollToggle.setToggleState(true, juce::dontSendNotification);
     clarityToggle.setButtonText("Clarity");
     midiThruToggle.setButtonText("MIDI Thru");
     freezeToggle.setButtonText("Freeze");
@@ -59,6 +61,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     freezeIndicator.setJustificationType(juce::Justification::centredRight);
 
     addAndMakeVisible(advancedToggle);
+    addAndMakeVisible(scrollToggle);
     addAndMakeVisible(clarityToggle);
     addAndMakeVisible(midiThruToggle);
     addAndMakeVisible(freezeToggle);
@@ -87,8 +90,13 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
         setAdvancedVisible(advancedToggle.getToggleState());
         resized();
     };
+    scrollToggle.onClick = [this]
+    {
+        pianoRoll.setScrollEnabled(scrollToggle.getToggleState());
+    };
 
     pianoRoll.setTimeWindowSeconds(8.0);
+    pianoRoll.setScrollEnabled(true);
     levelMeter.setFrameRateHz(30);
     levelMeter.setDecaySeconds(1.5f);
     setAdvancedVisible(false);
@@ -139,7 +147,8 @@ void TestPluginAudioProcessorEditor::resized()
 
     controls.removeFromTop(6);
     auto advancedToggleRow = controls.removeFromTop(24);
-    advancedToggle.setBounds(advancedToggleRow);
+    advancedToggle.setBounds(advancedToggleRow.removeFromLeft(120));
+    scrollToggle.setBounds(advancedToggleRow.removeFromLeft(100));
 
     if (advancedVisible)
     {

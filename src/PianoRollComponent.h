@@ -17,6 +17,7 @@ public:
     void setTimeWindowSeconds(double seconds);
     double getLastNoteEventTimeSeconds() const;
     void setFrozen(bool frozen);
+    void setScrollEnabled(bool enabled);
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -56,7 +57,11 @@ private:
     double lastNoteEventTime = 0.0;
     double currentTimeSeconds = 0.0;
     double freezeTimeSeconds = 0.0;
+    double pausedViewTimeSeconds = 0.0;
+    double wallToNoteTimeOffsetSeconds = 0.0;
+    bool hasWallToNoteOffset = false;
     bool isFrozen = false;
+    bool scrollEnabled = true;
 
     juce::String hoverTooltip;
 

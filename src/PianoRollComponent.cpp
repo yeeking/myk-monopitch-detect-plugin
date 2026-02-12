@@ -15,6 +15,14 @@ void PianoRollComponent::noteOn(int note, float velocity, double timeSeconds)
     if (note < 0 || note >= static_cast<int>(activeNotes.size()))
         return;
 
+    const double wallNow = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    if (!hasWallToNoteOffset || timeSeconds + 0.1 < currentTimeSeconds)
+    {
+        wallToNoteTimeOffsetSeconds = wallNow - timeSeconds;
+        hasWallToNoteOffset = true;
+    }
+    currentTimeSeconds = juce::jmax(currentTimeSeconds, timeSeconds);
+
     auto& slot = activeNotes[static_cast<size_t>(note)];
     if (!slot.active)
     {
@@ -34,6 +42,14 @@ void PianoRollComponent::noteOff(int note, double timeSeconds)
 {
     if (note < 0 || note >= static_cast<int>(activeNotes.size()))
         return;
+
+    const double wallNow = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    if (!hasWallToNoteOffset || timeSeconds + 0.1 < currentTimeSeconds)
+    {
+        wallToNoteTimeOffsetSeconds = wallNow - timeSeconds;
+        hasWallToNoteOffset = true;
+    }
+    currentTimeSeconds = juce::jmax(currentTimeSeconds, timeSeconds);
 
     auto& slot = activeNotes[static_cast<size_t>(note)];
     if (!slot.active)
@@ -80,6 +96,17 @@ void PianoRollComponent::setFrozen(bool frozen)
     repaint();
 }
 
+void PianoRollComponent::setScrollEnabled(bool enabled)
+{
+    if (scrollEnabled == enabled)
+        return;
+
+    scrollEnabled = enabled;
+    if (!scrollEnabled)
+        pausedViewTimeSeconds = currentTimeSeconds;
+    repaint();
+}
+
 void PianoRollComponent::paint(juce::Graphics& g)
 {
     auto area = getLocalBounds().toFloat();
@@ -117,7 +144,8 @@ void PianoRollComponent::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xFF41515C));
     g.drawLine(nowX, area.getY(), nowX, area.getBottom(), 2.0f);
 
-    const double currentTime = isFrozen ? freezeTimeSeconds : currentTimeSeconds;
+    const double currentTime = isFrozen ? freezeTimeSeconds
+                                        : (scrollEnabled ? currentTimeSeconds : pausedViewTimeSeconds);
 
     auto drawEvent = [&](const NoteBar& event, bool isActive)
     {
@@ -200,8 +228,17 @@ void PianoRollComponent::timerCallback()
     if (isFrozen)
         return;
 
-    currentTimeSeconds = juce::Time::getMillisecondCounterHiRes() * 0.001;
-    pruneOldNotes(currentTimeSeconds);
+    if (hasWallToNoteOffset)
+    {
+        const double wallNow = juce::Time::getMillisecondCounterHiRes() * 0.001;
+        currentTimeSeconds = juce::jmax(currentTimeSeconds, wallNow - wallToNoteTimeOffsetSeconds);
+    }
+
+    if (scrollEnabled)
+    {
+        pausedViewTimeSeconds = currentTimeSeconds;
+        pruneOldNotes(currentTimeSeconds);
+    }
     repaint();
 }
 
@@ -218,7 +255,8 @@ void PianoRollComponent::pruneOldNotes(double currentTime)
 
 void PianoRollComponent::updateTooltipForPoint(juce::Point<float> point)
 {
-    const double currentTime = isFrozen ? freezeTimeSeconds : currentTimeSeconds;
+    const double currentTime = isFrozen ? freezeTimeSeconds
+                                        : (scrollEnabled ? currentTimeSeconds : pausedViewTimeSeconds);
 
     auto hitTest = [&](const NoteBar& event, bool isActive) -> bool
     {

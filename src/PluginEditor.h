@@ -67,6 +67,7 @@ private:
     juce::Label decayLabel;
 
     juce::ToggleButton advancedToggle;
+    juce::ToggleButton scrollToggle;
     juce::ToggleButton clarityToggle;
     juce::ToggleButton midiThruToggle;
     juce::ToggleButton freezeToggle;
