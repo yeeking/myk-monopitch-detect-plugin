@@ -42,6 +42,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     configureSlider(maxBinsSlider, maxBinsLabel, "Max Bins/Oct");
     configureSlider(medianSlider, medianLabel, "Median");
     configureSlider(ampThreshSlider, ampThreshLabel, "Amp Thresh");
+    configureSlider(ampScaleSlider, ampScaleLabel, "Amp Scale");
     configureSlider(peakThreshSlider, peakThreshLabel, "Peak Thresh");
     configureSlider(downSampleSlider, downSampleLabel, "Downsample");
     configureSlider(noteLengthSlider, noteLengthLabel, "Note Length (ms)");
@@ -66,6 +67,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     maxBinsAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "maxBins", maxBinsSlider);
     medianAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "median", medianSlider);
     ampThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "ampThresh", ampThreshSlider);
+    ampScaleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "ampScale", ampScaleSlider);
     peakThreshAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "peakThresh", peakThreshSlider);
     downSampleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "downSample", downSampleSlider);
     noteLengthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "noteLengthMs", noteLengthSlider);
@@ -124,6 +126,7 @@ void TestPluginAudioProcessorEditor::resized()
     row(maxBinsLabel, maxBinsSlider);
     row(medianLabel, medianSlider);
     row(ampThreshLabel, ampThreshSlider);
+    row(ampScaleLabel, ampScaleSlider);
     row(peakThreshLabel, peakThreshSlider);
     row(downSampleLabel, downSampleSlider);
     row(noteLengthLabel, noteLengthSlider);

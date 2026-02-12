@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <JuceHeader.h>
 
 int PitchDetector::log2ceil(int x)
 {
@@ -116,15 +117,19 @@ void PitchDetector::processBlock(const float* input, int numSamples, std::vector
             if (index >= size)
             {
                 float outFreq = freq;
+                float outAmp = amp; 
                 float outClarity = hasFreq;
-                const bool gotPitch = analyse(outFreq, outClarity);
+                const bool gotPitch = analyse(outFreq, outAmp, outClarity);
                 freq = outFreq;
+                amp = outAmp; 
                 hasFreq = outClarity;
 
                 if (gotPitch && outClarity > 0.0f)
                 {
                     Detection detection;
                     detection.freq = outFreq;
+                    detection.amp = outAmp;
+                    
                     detection.clarity = outClarity;
                     detection.sampleOffset = sample;
                     detections.push_back(detection);
@@ -144,7 +149,7 @@ void PitchDetector::processBlock(const float* input, int numSamples, std::vector
     }
 }
 
-bool PitchDetector::analyse(float& outFreq, float& outClarity)
+bool PitchDetector::analyse(float& outFreq, float& outAmp, float& outClarity)
 {
     bool foundPeak = false;
     bool ampOk = false;
@@ -270,6 +275,7 @@ bool PitchDetector::analyse(float& outFreq, float& outClarity)
             prevAmpSum += buffer[static_cast<size_t>(idx + j)] * buffer[static_cast<size_t>(j)];
     }
 
+    
     while (nextAmpSum > maxSum && period < maxPeriod)
     {
         prevAmpSum = maxSum;
@@ -305,5 +311,15 @@ bool PitchDetector::analyse(float& outFreq, float& outClarity)
     else
         outClarity = 1.0f;
 
+
+    // Map raw autocorrelation amplitude to a log-like curve:
+    // fast rise for low input, then compression toward 1.0 at the top.
+    const float rawAmp = (period > 0) ? (prevAmpSum / static_cast<float>(period)) : 0.0f;
+    constexpr float ampCurve = 20.0f;
+    const float safeAmp = std::max(0.0f, rawAmp);
+    const float mappedAmp = std::log1p(ampCurve * safeAmp) / std::log1p(ampCurve);
+    outAmp = juce::jlimit(0.0f, 1.0f, mappedAmp);
+    
+    
     return true;
 }

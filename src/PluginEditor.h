@@ -43,6 +43,7 @@ private:
     juce::Slider maxBinsSlider;
     juce::Slider medianSlider;
     juce::Slider ampThreshSlider;
+    juce::Slider ampScaleSlider;
     juce::Slider peakThreshSlider;
     juce::Slider downSampleSlider;
     juce::Slider noteLengthSlider;
@@ -55,6 +56,7 @@ private:
     juce::Label maxBinsLabel;
     juce::Label medianLabel;
     juce::Label ampThreshLabel;
+    juce::Label ampScaleLabel;
     juce::Label peakThreshLabel;
     juce::Label downSampleLabel;
     juce::Label noteLengthLabel;
@@ -72,6 +74,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> maxBinsAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> medianAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ampThreshAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ampScaleAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> peakThreshAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> downSampleAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> noteLengthAttachment;

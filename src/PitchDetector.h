@@ -22,6 +22,7 @@ public:
     struct Detection
     {
         float freq = 0.0f;
+        float amp = 0.0f;
         float clarity = 0.0f;
         int sampleOffset = 0;
     };
@@ -37,13 +38,14 @@ private:
     static float insertMedian(float* values, int* ages, int size, float value);
     static void initMedian(float* values, int* ages, int size, float value);
 
-    bool analyse(float& outFreq, float& outClarity);
+    bool analyse(float& outFreq, float& outAmp, float& outClarity);
 
     std::vector<float> buffer;
     std::vector<float> medianValues;
     std::vector<int> medianAges;
 
     float freq = 440.0f;
+    float amp = 0.0f;
     float minFreq = 60.0f;
     float maxFreq = 2000.0f;
     float hasFreq = 0.0f;
