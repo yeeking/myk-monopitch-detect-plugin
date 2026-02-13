@@ -322,7 +322,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
                 noteOnRequested[currentActiveNote] = false; 
             
                 noteOffToSend = currentActiveNote; 
-                noteOffSampleOffset = blockEndSample - 1;// give it some grace at the end 
+                noteOffSampleOffset = getBlockSize() - 1;// give it some grace at the end 
                 currentActiveNote = -1;
             }
     }
@@ -396,6 +396,13 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             // if (noteOffNeeded[noteOffToSend]){
             // DBG("OFF " << noteOffToSend << "\n\n");
             midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
+            NoteEvent eventOff;
+            eventOff.note = noteOffToSend;
+            eventOff.velocity = 0.0f;
+            eventOff.noteOn = false;
+            eventOff.timeSeconds = static_cast<double>(noteOffSampleOffset) / getSampleRate();
+            pushNoteEventFromAudioThread(eventOff);
+
             // }            
             break;
         }
@@ -409,7 +416,16 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         case InstrumentState::NoteLongEnoughSendNoteOn:{
             // DBG("NoteLongEnoughSendNoteOn");
             // DBG("ON " << noteOnToSend << " rms " << rmsSum);
-            midiMessages.addEvent(juce::MidiMessage::noteOn(1, noteOnToSend, static_cast<juce::uint8>(64)), noteOnSampleOffset);
+            juce::uint8 vel = static_cast<juce::uint8>(64);
+
+            midiMessages.addEvent(juce::MidiMessage::noteOn(1, noteOnToSend, vel), noteOnSampleOffset);
+            // tell the piano roll
+            NoteEvent eventOn;
+            eventOn.note = noteOnToSend;
+            eventOn.velocity = static_cast<float>(vel) / 127.0f;
+            eventOn.noteOn = true;
+            eventOn.timeSeconds = static_cast<double>(noteOnSampleOffset) / getSampleRate();
+            pushNoteEventFromAudioThread(eventOn);
             break;
         }
         case InstrumentState::NoteHeldNoteOnSent:{
@@ -418,10 +434,16 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         }
         case InstrumentState::NoteEndedNowSilentSendNoteOff:{
             // DBG("NoteEndedNowSilent"); 
-            // if (noteOffNeeded[noteOffToSend]){
             DBG("OFF " << noteOffToSend << "\n\n");
+
             midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
-            // }
+            // tell the piano roll
+            NoteEvent eventOff;
+            eventOff.note = noteOffToSend;
+            eventOff.velocity = 0.0f;
+            eventOff.noteOn = false;
+            eventOff.timeSeconds = static_cast<double>(noteOffSampleOffset) / getSampleRate();
+            pushNoteEventFromAudioThread(eventOff);
 
             break;
         }
