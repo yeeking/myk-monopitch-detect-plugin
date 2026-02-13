@@ -381,6 +381,8 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         currentActiveNote = newNoteMidiNum;
     }
 
+    const double blockStartSeconds = static_cast<double>(blockStartSample) / getSampleRate();
+
 
     switch (playerState)
     {
@@ -391,6 +393,9 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             break;
         }
         case InstrumentState::NoteAfterOtherNote:{
+            if (lastNoteOff == noteOffToSend){
+                // break; 
+            }
             // DBG("NoteAfterOtherNote"); 
             // only if we actually sent an on for this note
             // if (noteOffNeeded[noteOffToSend]){
@@ -400,8 +405,10 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             eventOff.note = noteOffToSend;
             eventOff.velocity = 0.0f;
             eventOff.noteOn = false;
-            eventOff.timeSeconds = static_cast<double>(noteOffSampleOffset) / getSampleRate();
+            eventOff.timeSeconds = blockStartSeconds + static_cast<double>(noteOffSampleOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOff);
+            lastNoteOff = noteOffToSend;
+
 
             // }            
             break;
@@ -424,7 +431,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             eventOn.note = noteOnToSend;
             eventOn.velocity = static_cast<float>(vel) / 127.0f;
             eventOn.noteOn = true;
-            eventOn.timeSeconds = static_cast<double>(noteOnSampleOffset) / getSampleRate();
+            eventOn.timeSeconds = blockStartSeconds + static_cast<double>(noteOnSampleOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOn);
             break;
         }
@@ -434,7 +441,10 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         }
         case InstrumentState::NoteEndedNowSilentSendNoteOff:{
             // DBG("NoteEndedNowSilent"); 
-            DBG("OFF " << noteOffToSend << "\n\n");
+             if (lastNoteOff == noteOffToSend){
+                // break; 
+            }
+            // DBG("OFF " << noteOffToSend << "\n\n");
 
             midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
             // tell the piano roll
@@ -442,9 +452,10 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             eventOff.note = noteOffToSend;
             eventOff.velocity = 0.0f;
             eventOff.noteOn = false;
-            eventOff.timeSeconds = static_cast<double>(noteOffSampleOffset) / getSampleRate();
+            eventOff.timeSeconds = blockStartSeconds + static_cast<double>(noteOffSampleOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOff);
-
+            lastNoteOff = noteOffToSend;
+            // lastNoteOffSeconds =  eventOff.timeSeconds; 
             break;
         }
     }

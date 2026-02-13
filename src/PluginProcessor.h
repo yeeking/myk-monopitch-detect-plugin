@@ -131,7 +131,8 @@ private:
     std::array<bool, 127> noteOffNeeded {};
 
 
-
+    int lastNoteOff = -1;
+    int64 lastNoteOffSeconds = -1;
     std::array<long, 127> noteOnTimestamps {};
     std::array<long, 127> noteOffTimestamps {};
     
