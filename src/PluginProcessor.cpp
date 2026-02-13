@@ -171,8 +171,13 @@ void TestPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     hasPendingNote = false;
     pendingNote = -1;
     pendingVelocity = 0;
-    pendingDetectionSample = -1;
+    // pendingDetectionSample = -1;
     noteOnTimestamps.fill(0);
+    noteOffTimestamps.fill(0);
+    noteOnNeeded.fill(false);
+    noteOffNeeded.fill(false);
+
+    
 }
 
 void TestPluginAudioProcessor::releaseResources()
@@ -235,10 +240,10 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     const float maxNoteLengthSec = parameters.getRawParameterValue(paramNoteLengthMs)->load();
     const float ampScale = parameters.getRawParameterValue(paramAmpScale)->load();
     const int minVelocityParam = static_cast<int>(parameters.getRawParameterValue(paramMinVelocity)->load());
-    const float noteDelayMs = parameters.getRawParameterValue(paramDelay)->load();
+    const float minAllowedNoteLenSecs = parameters.getRawParameterValue(paramDelay)->load();
     const int64 decaySamples = static_cast<int64>(std::max(0.0f, decayTimeSec) * static_cast<float>(lastSampleRate));
     const int64 maxNoteLengthSamples = static_cast<int64>(std::max(0.0f, maxNoteLengthSec) * static_cast<float>(lastSampleRate));
-    const int64 noteDelaySamples = static_cast<int64>((std::max(0.0f, noteDelayMs) * 0.001f) * static_cast<float>(lastSampleRate));
+    const int64 noteDelaySamples = static_cast<int64>((std::max(0.0f, minAllowedNoteLenSecs) * 0.001f) * static_cast<float>(lastSampleRate));
 
     if (!settingsEqual(pitchSettings, lastPitchSettings))
     {
@@ -277,198 +282,220 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     const int64 blockStartSample = sampleCounter;
     const int64 blockEndSample = sampleCounter + numSamples;
-#if JUCE_DEBUG
-    auto logMidiSend = [&](const char* type, int note, juce::uint8 velocity, int offset)
-    {
-        juce::Logger::writeToLog("MIDI OUT " + juce::String(type)
-            + " note=" + juce::String(note)
-            + " velocity=" + juce::String(static_cast<int>(velocity))
-            + " offset=" + juce::String(offset));
-    };
-#endif
-    auto clearNoteTimestamp = [&](int note)
-    {
-        if (note >= 0 && note < static_cast<int>(noteOnTimestamps.size()))
-            noteOnTimestamps[static_cast<size_t>(note)] = 0;
-    };
-
-    auto recordNoteTimestamp = [&](int note, int offset)
-    {
-        if (note >= 0 && note < static_cast<int>(noteOnTimestamps.size()))
-            noteOnTimestamps[static_cast<size_t>(note)] = static_cast<long>(blockStartSample + offset + 1);
-    };
-
-    auto sendExpiredNoteOffs = [&](int offset)
-    {
-        if (maxNoteLengthSamples <= 0)
-            return;
-
-        const int64 nowSample = blockStartSample + offset;
-        for (int note = 0; note < static_cast<int>(noteOnTimestamps.size()); ++note)
-        {
-            const long timestamp = noteOnTimestamps[static_cast<size_t>(note)];
-            if (timestamp <= 0)
-                continue;
-
-            const int64 elapsedSamples = (nowSample + 1) - static_cast<int64>(timestamp);
-            if (elapsedSamples < maxNoteLengthSamples)
-                continue;
-
-            midiMessages.addEvent(juce::MidiMessage::noteOff(1, note), offset);
-#if JUCE_DEBUG
-            logMidiSend("noteOff(timeout)", note, 0, offset);
-#endif
-            NoteEvent eventOff;
-            eventOff.note = note;
-            eventOff.velocity = 0.0f;
-            eventOff.noteOn = false;
-            eventOff.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
-            pushNoteEventFromAudioThread(eventOff);
-            noteOnTimestamps[static_cast<size_t>(note)] = 0;
-
-            if (currentActiveNote == note)
-                currentActiveNote = -1;
-        }
-    };
-
-    auto sendNoteChange = [&](int note, juce::uint8 velocity, int offset)
-    {
-        if (note == currentActiveNote)
-            return;
-
-        if (currentActiveNote >= 0)
-        {
-            midiMessages.addEvent(juce::MidiMessage::noteOff(1, currentActiveNote), offset);
-#if JUCE_DEBUG
-            logMidiSend("noteOff", currentActiveNote, 0, offset);
-#endif
-            clearNoteTimestamp(currentActiveNote);
-            NoteEvent eventOff;
-            eventOff.note = currentActiveNote;
-            eventOff.velocity = 0.0f;
-            eventOff.noteOn = false;
-            eventOff.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
-            pushNoteEventFromAudioThread(eventOff);
-            sendExpiredNoteOffs(offset);
-        }
-
-        midiMessages.addEvent(juce::MidiMessage::noteOn(1, note, velocity), offset);
-#if JUCE_DEBUG
-        logMidiSend("noteOn", note, velocity, offset);
-#endif
-        recordNoteTimestamp(note, offset);
-        NoteEvent eventOn;
-        eventOn.note = note;
-        eventOn.velocity = static_cast<float>(velocity) / 127.0f;
-        eventOn.noteOn = true;
-        eventOn.timeSeconds = static_cast<double>(blockStartSample + offset) / getSampleRate();
-        pushNoteEventFromAudioThread(eventOn);
-
-        currentActiveNote = note;
-    };
 
     pitchDetector.processBlock(monoBuffer.data(), numSamples, detections);
-    bool detectedThisBlock = false;
-    const PitchDetector::Detection* selectedDetection = nullptr;
-    for (const auto& detection : detections)
-    {
-        if (detection.freq <= 0.0f)
-            continue;
 
-        if (selectedDetection == nullptr || detection.amp > selectedDetection->amp)
-            selectedDetection = &detection;
-    }
+    
 
-    if (selectedDetection != nullptr)
-    {
-        const auto& detection = *selectedDetection;
-        detectedThisBlock = true;
-        lastDetectionSample = blockStartSample + detection.sampleOffset;
+    bool sendNoteOn = false;
+    bool sendNoteOff = false;
+    int noteOnToSend = -1;
+    int noteOffToSend = -1;
 
-       #if JUCE_DEBUG
-        const int64 logInterval = static_cast<int64>(lastSampleRate * 0.5);
-        logCounter += numSamples;
-        if (logCounter >= logInterval)
-        {
-            logCounter = 0;
-            juce::Logger::writeToLog("Detected pitch: " + juce::String(detection.freq, 2) + " Hz, amp: " + juce::String(detection.amp, 2) );
+    int velToPlay = -1;
+    int64 durToPlaySamples = -1;
+    const int64 minAllowedNoteLenSamples = minAllowedNoteLenSecs * getSampleRate();
+    InstrumentState playerState;
+
+    // first detect silence 
+    if (detections.size() == 0){// silence 
+        silenceForNSamples += getBlockSize();
+
+        if (silenceForNSamples > minAllowedNoteLenSamples){
+            playerState = InstrumentState::ShortSilence;        
+        } 
+
+        if (silenceForNSamples > minAllowedNoteLenSamples && 
+            currentActiveNote == -1){ // just a long silence
+            
+                playerState = InstrumentState::LongSilence;        
         }
-       #endif
-
-        const double midiNoteDouble = 69.0 + 12.0 * std::log2(detection.freq / 440.0);
-        const int note = juce::jlimit(0, 127, static_cast<int>(std::lround(midiNoteDouble)));
-        // const float velocityFloat = juce::jlimit(0.1f, 1.0f, detection.clarity);
-        const float scaledAmp = detection.amp * ampScale;
-        const float velocityFloat = juce::jlimit(0.1f, 1.0f, scaledAmp);
-
-        const int minVelocity = juce::jlimit(0, 64, minVelocityParam);
-        const auto velocity = static_cast<juce::uint8>(
-            juce::jlimit(minVelocity, 127, static_cast<int>(std::lround(velocityFloat * 127.0f))));
-
-        if (noteDelaySamples == 0)
-        {
-            sendNoteChange(note, velocity, detection.sampleOffset);
-        }
-        else
-        {
-            hasPendingNote = true;
-            pendingNote = note;
-            pendingVelocity = velocity;
-            pendingDetectionSample = blockStartSample + detection.sampleOffset;
-        }
-    }
-
-    if (hasPendingNote)
-    {
-        const int64 sendSample = pendingDetectionSample + noteDelaySamples;
-        if (sendSample < blockEndSample)
-        {
-            const int offset = static_cast<int>(juce::jlimit<int64>(0, numSamples - 1, sendSample - blockStartSample));
-            sendNoteChange(pendingNote, pendingVelocity, offset);
-            hasPendingNote = false;
-            pendingNote = -1;
-            pendingVelocity = 0;
-            pendingDetectionSample = -1;
-        }
-    }
-
-    if (!detectedThisBlock && currentActiveNote >= 0)
-    {
-        bool shouldTurnOff = decaySamples == 0;
-        int offOffset = 0;
-
-        if (decaySamples > 0 && lastDetectionSample >= 0)
-        {
-            const int64 offSampleTime = lastDetectionSample + decaySamples;
-            if (offSampleTime <= blockStartSample)
-            {
-                shouldTurnOff = true;
-                offOffset = 0;
-            }
-            else if (offSampleTime < blockEndSample)
-            {
-                shouldTurnOff = true;
-                offOffset = static_cast<int>(offSampleTime - blockStartSample);
-            }
-        }
-
-        if (shouldTurnOff)
-        {
-            midiMessages.addEvent(juce::MidiMessage::noteOff(1, currentActiveNote), offOffset);
-#if JUCE_DEBUG
-            logMidiSend("noteOff", currentActiveNote, 0, offOffset);
-#endif
-            clearNoteTimestamp(currentActiveNote);
-            NoteEvent eventOff;
-            eventOff.note = currentActiveNote;
-            eventOff.velocity = 0.0f;
-            eventOff.noteOn = false;
-            eventOff.timeSeconds = static_cast<double>(blockStartSample + offOffset) / getSampleRate();
-            pushNoteEventFromAudioThread(eventOff);
-            sendExpiredNoteOffs(offOffset);
+        if (silenceForNSamples > minAllowedNoteLenSamples && // long silence
+            currentActiveNote != -1){ // was playing a note
+                playerState = InstrumentState::NoteEndedNowSilentSendNoteOff;  
+                // reset it 
+                noteOnNeeded[currentActiveNote] = false; 
+                noteOffToSend = currentActiveNote; 
+            // need a note off
+            // DBG("note ended with silence- send note off ");     
             currentActiveNote = -1;
         }
+        
     }
+    if (detections.size() > 0){// notes
+        silenceForNSamples = 0;// reset that one 
+        PitchDetector::Detection newNoteData = detections[0];
+        int newNoteMidiNum = static_cast<int>(std::lround(69.0 + 12.0 * std::log2(newNoteData.freq / 440.0)));
+        // DBG("Got note " << newNoteMidiNum);
+        if (currentActiveNote == -1 &&
+            newNoteMidiNum != currentActiveNote){// 
+                playerState = InstrumentState::NoteAfterSilence;   
+                // start the timer 
+                currentActiveNoteStartSample = blockStartSample + newNoteData.sampleOffset; 
+        }
+        if (currentActiveNote != -1 &&
+            newNoteMidiNum != currentActiveNote){// 
+                playerState = InstrumentState::NoteAfterOtherNote;  
+                currentActiveNoteStartSample = blockStartSample + newNoteData.sampleOffset; 
+                noteOffToSend = currentActiveNote; 
+        } 
+        if (currentActiveNote != -1 &&
+            newNoteMidiNum == currentActiveNote){// 
+                playerState = InstrumentState::NoteHeldNotLongEnoughYet;
+
+                // is the held note held long enough to 
+                // allow a note on message? 
+                const int64 timeSinceNoteStartSamples = blockStartSample - currentActiveNoteStartSample;
+                if (timeSinceNoteStartSamples > minAllowedNoteLenSamples){
+                    if (noteOnNeeded[currentActiveNote]){
+                        playerState = InstrumentState::NoteHeldNoteOnSent; 
+                    }
+                    else{
+                        playerState = InstrumentState::NoteLongEnoughSendNoteOn; 
+                        noteOffNeeded[currentActiveNote] = true; // we'll need one of these 
+                        noteOnNeeded[currentActiveNote] = true; 
+                        noteOnToSend = currentActiveNote;
+                    }
+                }
+        } 
+        currentActiveNote = newNoteMidiNum;
+    }
+
+
+    switch (playerState)
+    {
+        // case InstrumentState::LongSilence:       DBG("LongSilence"); break;
+        // case InstrumentState::ShortSilence:      DBG("ShortSilence"); break;
+        case InstrumentState::NoteAfterSilence:  {
+            DBG("NoteAfterSilence"); 
+            break;
+        }
+        case InstrumentState::NoteAfterOtherNote:{
+            DBG("NoteAfterOtherNote"); 
+            // only if we actually sent an on for this note
+            if (noteOffNeeded[noteOffToSend]){
+                DBG("OFF " << noteOffToSend);
+            }            
+            break;
+        }
+ 
+        case InstrumentState::NoteHeldNotLongEnoughYet:{
+            DBG("NoteHeldNotLongEnoughYet"); 
+            break;
+        }
+        case InstrumentState::NoteLongEnoughSendNoteOn:{
+            // DBG("NoteLongEnoughSendNoteOn");
+            DBG("ON " << noteOnToSend);
+            break;
+        }
+        case InstrumentState::NoteHeldNoteOnSent:{
+            // DBG("NoteHeldNoteOnSent"); 
+            break;
+        }
+        case InstrumentState::NoteEndedNowSilentSendNoteOff:{
+            // DBG("NoteEndedNowSilent"); 
+            if (noteOffNeeded[noteOffToSend]){
+                DBG("OFF " << noteOffToSend);
+            }
+
+            break;
+        }
+    }
+
+    
+
+    // // managing the detections
+    // if (detections.size() > 0){// we saw a note. 
+    //     silenceForNSamples = 0;
+
+    //     PitchDetector::Detection newNoteData = detections[0];
+
+    //     int newNoteMidiNum = static_cast<int>(std::lround(69.0 + 12.0 * std::log2(newNoteData.freq / 440.0)));
+    //     // is it a different note from last time? 
+    //     if (newNoteMidiNum != currentActiveNote){// YES it changed
+    //         // wantNoteOn[newNoteMidiNum] = true; // we've not sent note on for this one yet 
+
+    //         // note changed - did the previous note last long enough for us to send it out?
+    //         const int64 newNoteStartSamples = blockStartSample + newNoteData.sampleOffset;
+    //         const int64 oldNoteDurationSamples = newNoteStartSamples - currentActiveNoteStartSample;
+    //         const double oldNoteDurationMs = 1000.0 * (static_cast<double>(oldNoteDurationSamples) / getSampleRate());
+
+    //         if (currentActiveNote != -1 &&// previous note was not silence
+    //             oldNoteDurationMs > minAllowedNoteLenSecs * 1000.0){// previous note was long enough
+    //             // have we sent a note off for the previous note yet?
+
+    //             DBG("Notechanged from valid note - do updates ");
+    //             // sendNoteOff = true; 
+    //             wantNoteOff[currentActiveNote] = true; 
+    //             noteToPlay = currentActiveNote;
+    //             durToPlaySamples = oldNoteDurationSamples; 
+    //         }
+ 
+    //         wantNoteOn[currentActiveNote] = false;// re-prime the note on requester for the 'old' note 
+            
+    //         // reset the note on timestamp 
+    //         currentActiveNoteStartSample = newNoteData.sampleOffset + blockStartSample;
+    //         currentActiveNote = newNoteMidiNum; 
+
+    //     }
+    //     else{// we saw a note but it is the same as last time. 
+    //         // if the time since we first saw the note is sufficiently long (>minNoteLength)
+    //         // then we should send a note on
+    //         const int64 noteDurationSoFarSamples = blockStartSample - currentActiveNoteStartSample;
+    //         const double noteDurationSoFarMs = 1000.0 * (static_cast<double>(noteDurationSoFarSamples) / getSampleRate());
+    //         // is the note long enough, and have we not yet sent a note? 
+    //         if (wantNoteOn[currentActiveNote] == false &&// we've not already sent note on 
+    //             noteDurationSoFarMs > minAllowedNoteLenSecs * 1000.0){// we have held this note for long enough to send a note on
+    //             sendNoteOn = true; 
+    //             noteToPlay = currentActiveNote;
+    //             DBG("Note held long enough - send note on " << noteToPlay);
+    //             // somehow remember that we've sent the note on 
+    //             wantNoteOn[currentActiveNote] = true; 
+    //         }
+
+    //         // const double note = 1000.0 * (static_cast<double>(oldNoteDurationSamples) / getSampleRate());
+
+    //     }
+    // }
+    // if (detections.size() == 0){
+    //     // remember how long since we last saw a detection 
+    //     // because we can get a no detection event even when a note is still playing
+    //     // so we 'latch' the note for a bit of time before we consider it to have really ended 
+
+    //     silenceForNSamples += getBlockSize();
+    //     const double noDetectionsForNMs = 1000.0 * (static_cast<double>(silenceForNSamples) / getSampleRate());
+
+    //     if (noDetectionsForNMs > (minAllowedNoteLenSecs * 1000.0) && 
+    //         currentActiveNote != -1) {
+    //         // ok that's a valid 'note off' style silence 
+    //         // send a note off 
+    //         const int64 currentNoteDurationSamples = blockStartSample - currentActiveNoteStartSample;
+    //         const double currentNoteDurationMs = 1000.0 * (static_cast<double>(currentNoteDurationSamples) / getSampleRate());
+    //         if (currentNoteDurationMs > minAllowedNoteLenSecs * 1000.0){
+    //             DBG("Note ended : send note off " << currentActiveNote << " dur " << currentNoteDurationMs);
+    //             wantNoteOff[currentActiveNote] = true;
+    //             sendNoteOff = true; 
+    //             noteToPlay = currentActiveNote;
+    //             durToPlaySamples = currentNoteDurationSamples; 
+    //         }
+    //         // now reset things!
+    //         currentActiveNote = -1; 
+    //     }   
+    // }
+
+    // if (sendNoteOn){
+    //     // we have noteToPlay and durToPlaySamples
+    //     // work out the velocity
+    //     DBG("ON " << noteToPlay << " amp " << velToPlay << " dur " << durToPlaySamples);
+
+    // }
+
+    // if (sendNoteOff){
+    //     // we have noteToPlay and durToPlaySamples
+    //     // work out the velocity
+    //     DBG("OFF " << noteToPlay << " amp " << velToPlay << " dur " << durToPlaySamples);
+
+    // }
 
     sampleCounter += numSamples;
 }
@@ -553,15 +580,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout TestPluginAudioProcessor::cr
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramExecFreq, "Cycle Time", juce::NormalisableRange<float>(10.0f, 500.0f, 0.01f, 0.5f), 10.0f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMaxBins, "Max Bins/Oct", 1, 32, 16));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMedian, "Median", 1, 31, 7));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpThresh, "Amp Thresh", juce::NormalisableRange<float>(0.0f, 0.2f, 0.0001f), 0.02f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpThresh, "Amp Thresh", juce::NormalisableRange<float>(0.0f, 0.02f, 0.0001f), 0.05f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpScale, "Amp Scale", juce::NormalisableRange<float>(0.0f, 5.0f, 0.001f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMinVelocity, "Min Velocity", 0, 64, 0));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDelay, "Debounce (ms)", juce::NormalisableRange<float>(0.0f, 25.0f, 1.0f), 10.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDelay, "Min note len", juce::NormalisableRange<float>(0.0f, 0.25f, 0.01f), 0.05f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramPeakThresh, "Peak Thresh", juce::NormalisableRange<float>(0.1f, 1.0f, 0.001f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramDownSample, "Downsample", 1, 32, 1));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramClarity, "Clarity", true));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramNoteLengthMs, "Max Note Length (s)", juce::NormalisableRange<float>(3.0f, 10.0f, 0.1f), 5.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDecayTime, "Decay Time (s)", juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDecayTime, "Decay Time (s)", juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.001f));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramMidiThru, "MIDI Thru", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramFreeze, "Freeze", false));
 

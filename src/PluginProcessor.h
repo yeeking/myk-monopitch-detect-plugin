@@ -15,6 +15,22 @@
 
 #include "PitchDetector.h"
 
+// * Long / real silence ( silence > minNoteLen) detected
+// * Short silence / but note still playing (silence < minNoteLen) detected
+// * Started a note after silence
+// * Started a note after another note
+// * Ended a note
+// * Note played for long enough to trigger note on
+enum class InstrumentState{
+  LongSilence, 
+  ShortSilence,
+  NoteAfterSilence,
+  NoteAfterOtherNote, 
+  NoteHeldNotLongEnoughYet,
+  NoteLongEnoughSendNoteOn,
+  NoteHeldNoteOnSent,
+  NoteEndedNowSilentSendNoteOff, 
+};
 //==============================================================================
 /**
 */
@@ -96,14 +112,31 @@ private:
     double lastSampleRate = 44100.0;
     int lastBlockSize = 0;
     int64 logCounter = 0;
+
     int currentActiveNote = -1;
+
+    int64 currentActiveNoteStartSample = -1;
+
+
     int64 lastDetectionSample = -1;
+    int64 silenceForNSamples = -1;
+    
+    
     bool hasPendingNote = false;
     int pendingNote = -1;
     juce::uint8 pendingVelocity = 0;
-    int64 pendingDetectionSample = -1;
-    std::array<long, 127> noteOnTimestamps {};
+    // int64 pendingDetectionSample = -1;
 
+    std::array<bool, 127> noteOnNeeded {};
+    std::array<bool, 127> noteOffNeeded {};
+
+
+
+    std::array<long, 127> noteOnTimestamps {};
+    std::array<long, 127> noteOffTimestamps {};
+    
+    
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestPluginAudioProcessor)
 };
+

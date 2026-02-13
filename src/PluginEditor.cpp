@@ -44,7 +44,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     configureSlider(ampThreshSlider, ampThreshLabel, "Amp Thresh");
     configureSlider(ampScaleSlider, ampScaleLabel, "Amp Scale");
     configureSlider(minVelocitySlider, minVelocityLabel, "Min Velocity");
-    configureSlider(delaySlider, delayLabel, "Debounce (ms)");
+    configureSlider(delaySlider, delayLabel, "Nin note len (ms)");
     configureSlider(peakThreshSlider, peakThreshLabel, "Peak Thresh");
     configureSlider(downSampleSlider, downSampleLabel, "Downsample");
     configureSlider(noteLengthSlider, noteLengthLabel, "Max Note Length (s)");
