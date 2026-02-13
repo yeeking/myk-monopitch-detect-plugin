@@ -322,11 +322,9 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
                 noteOnRequested[currentActiveNote] = false; 
             
                 noteOffToSend = currentActiveNote; 
-            // need a note off
-            // DBG("note ended with silence- send note off ");     
-            currentActiveNote = -1;
-        }
-        
+                noteOffSampleOffset = blockEndSample - 1;// give it some grace at the end 
+                currentActiveNote = -1;
+            }
     }
     if (detections.size() > 0){// notes
         silenceForNSamples = 0;// reset that one 
@@ -395,15 +393,15 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         case InstrumentState::NoteAfterOtherNote:{
             // DBG("NoteAfterOtherNote"); 
             // only if we actually sent an on for this note
-            if (noteOffNeeded[noteOffToSend]){
-                // DBG("OFF " << noteOffToSend << "\n\n");
-                midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
-            }            
+            // if (noteOffNeeded[noteOffToSend]){
+            // DBG("OFF " << noteOffToSend << "\n\n");
+            midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
+            // }            
             break;
         }
  
         case InstrumentState::NoteHeldNotLongEnoughYet:{
-            DBG("NoteHeldNotLongEnoughYet  min " << minAllowedNoteLenSamples << " is: " << timeSinceNoteStartSamples); 
+            // DBG("NoteHeldNotLongEnoughYet  min " << minAllowedNoteLenSamples << " is: " << timeSinceNoteStartSamples); 
             // DBG("ON " << noteOnToSend << " rms " << rmsSum);
             // midiMessages.addEvent(juce::MidiMessage::noteOn(1, noteOnToSend, static_cast<juce::uint8>(64)), noteOnSampleOffset);
             break;
@@ -420,10 +418,10 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         }
         case InstrumentState::NoteEndedNowSilentSendNoteOff:{
             // DBG("NoteEndedNowSilent"); 
-            if (noteOffNeeded[noteOffToSend]){
-                // DBG("OFF " << noteOffToSend << "\n\n");
-                midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
-            }
+            // if (noteOffNeeded[noteOffToSend]){
+            DBG("OFF " << noteOffToSend << "\n\n");
+            midiMessages.addEvent(juce::MidiMessage::noteOff(1, noteOffToSend), noteOffSampleOffset);
+            // }
 
             break;
         }
