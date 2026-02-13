@@ -127,7 +127,7 @@ private:
     juce::uint8 pendingVelocity = 0;
     // int64 pendingDetectionSample = -1;
 
-    std::array<bool, 127> noteOnNeeded {};
+    std::array<bool, 127> noteOnRequested {};
     std::array<bool, 127> noteOffNeeded {};
 
 
