@@ -273,7 +273,8 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             mixed += buffer.getReadPointer(channel)[sample];
 
         mixed *= channelScale;
-        monoBuffer[static_cast<size_t>(sample)] = mixed * ampScale;
+        mixed *= ampScale; 
+        monoBuffer[static_cast<size_t>(sample)] = mixed;
         rmsSum += mixed * mixed;
     }
 
@@ -668,7 +669,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TestPluginAudioProcessor::cr
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMaxBins, "Max Bins/Oct", 1, 32, 16));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMedian, "Median", 1, 31, 7));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpThresh, "Amp Thresh", juce::NormalisableRange<float>(0.0f, 0.02f, 0.0001f), 0.05f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpScale, "Amp Scale", juce::NormalisableRange<float>(0.0f, 5.0f, 0.001f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(paramAmpScale, "Gain", juce::NormalisableRange<float>(0.0f, 10.0f, 0.001f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(paramMinVelocity, "Min Velocity", 0, 64, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDelay, "Min note len", juce::NormalisableRange<float>(0.0f, 0.25f, 0.001f), 0.001f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramPeakThresh, "Peak Thresh", juce::NormalisableRange<float>(0.1f, 1.0f, 0.001f), 0.5f));
