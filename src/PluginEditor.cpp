@@ -19,10 +19,14 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     // editor's size to whatever you need it to be.
     addAndMakeVisible(pianoRoll);
     addAndMakeVisible(levelMeter);
+    addAndMakeVisible(controlTabs);
+    controlTabs.setTabBarDepth(26);
+    controlTabs.addTab("Basic", juce::Colour(0xFF151C22), &basicControls, false);
+    controlTabs.addTab("Advanced", juce::Colour(0xFF151C22), &advancedControls, false);
 
     auto& vts = audioProcessor.getValueTreeState();
 
-    auto configureSlider = [&](juce::Slider& slider, juce::Label& label, const juce::String& text)
+    auto configureSlider = [&](juce::Component& parent, juce::Slider& slider, juce::Label& label, const juce::String& text)
     {
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
         slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 70, 20);
@@ -31,26 +35,24 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
         label.setText(text, juce::dontSendNotification);
         label.setColour(juce::Label::textColourId, juce::Colour(0xFFB7C6D9));
         label.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(label);
-        addAndMakeVisible(slider);
+        parent.addAndMakeVisible(label);
+        parent.addAndMakeVisible(slider);
     };
 
-    configureSlider(initFreqSlider, initFreqLabel, "Init Freq");
-    configureSlider(minFreqSlider, minFreqLabel, "Min Freq");
-    configureSlider(maxFreqSlider, maxFreqLabel, "Max Freq");
-    configureSlider(execFreqSlider, execFreqLabel, "Cycle time");
-    configureSlider(maxBinsSlider, maxBinsLabel, "Max Bins/Oct");
-    configureSlider(medianSlider, medianLabel, "Median");
-    configureSlider(ampThreshSlider, ampThreshLabel, "Amp Thresh");
-    configureSlider(ampScaleSlider, ampScaleLabel, "Amp Scale");
-    configureSlider(minVelocitySlider, minVelocityLabel, "Min Velocity");
-    configureSlider(delaySlider, delayLabel, "Nin note len (ms)");
-    configureSlider(peakThreshSlider, peakThreshLabel, "Peak Thresh");
-    configureSlider(downSampleSlider, downSampleLabel, "Downsample");
-    configureSlider(noteLengthSlider, noteLengthLabel, "Max Note Length (s)");
-    configureSlider(decaySlider, decayLabel, "Decay (s)");
-
-    advancedToggle.setButtonText("Advanced");
+    configureSlider(advancedControls, initFreqSlider, initFreqLabel, "Init Freq");
+    configureSlider(advancedControls, minFreqSlider, minFreqLabel, "Min Freq");
+    configureSlider(advancedControls, maxFreqSlider, maxFreqLabel, "Max Freq");
+    configureSlider(advancedControls, execFreqSlider, execFreqLabel, "Cycle time");
+    configureSlider(advancedControls, maxBinsSlider, maxBinsLabel, "Max Bins/Oct");
+    configureSlider(advancedControls, medianSlider, medianLabel, "Median");
+    configureSlider(basicControls, ampThreshSlider, ampThreshLabel, "Amp Thresh");
+    configureSlider(basicControls, ampScaleSlider, ampScaleLabel, "Amp Scale");
+    configureSlider(basicControls, minVelocitySlider, minVelocityLabel, "Min Velocity");
+    configureSlider(basicControls, delaySlider, delayLabel, "Nin note len (ms)");
+    configureSlider(advancedControls, peakThreshSlider, peakThreshLabel, "Peak Thresh");
+    configureSlider(advancedControls, downSampleSlider, downSampleLabel, "Downsample");
+    configureSlider(advancedControls, noteLengthSlider, noteLengthLabel, "Max Note Length (s)");
+    configureSlider(advancedControls, decaySlider, decayLabel, "Decay (s)");
     scrollToggle.setButtonText("Scroll");
     scrollToggle.setToggleState(true, juce::dontSendNotification);
     clarityToggle.setButtonText("Clarity");
@@ -60,12 +62,11 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     freezeIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFE8C35E));
     freezeIndicator.setJustificationType(juce::Justification::centredRight);
 
-    addAndMakeVisible(advancedToggle);
-    addAndMakeVisible(scrollToggle);
-    addAndMakeVisible(clarityToggle);
-    addAndMakeVisible(midiThruToggle);
-    addAndMakeVisible(freezeToggle);
-    addAndMakeVisible(freezeIndicator);
+    basicControls.addAndMakeVisible(scrollToggle);
+    advancedControls.addAndMakeVisible(clarityToggle);
+    advancedControls.addAndMakeVisible(midiThruToggle);
+    advancedControls.addAndMakeVisible(freezeToggle);
+    advancedControls.addAndMakeVisible(freezeIndicator);
 
     initFreqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "initFreq", initFreqSlider);
     minFreqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(vts, "minFreq", minFreqSlider);
@@ -85,11 +86,6 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     clarityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(vts, "clarity", clarityToggle);
     midiThruAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(vts, "midiThru", midiThruToggle);
     freezeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(vts, "freeze", freezeToggle);
-    advancedToggle.onClick = [this]
-    {
-        setAdvancedVisible(advancedToggle.getToggleState());
-        resized();
-    };
     scrollToggle.onClick = [this]
     {
         pianoRoll.setScrollEnabled(scrollToggle.getToggleState());
@@ -99,9 +95,8 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     pianoRoll.setScrollEnabled(true);
     levelMeter.setFrameRateHz(15);
     levelMeter.setDecaySeconds(1.5f);
-    setAdvancedVisible(false);
 
-    setSize (500, 500);
+    setSize (640,720);
     startTimerHz(10);
 }
 
@@ -131,87 +126,64 @@ void TestPluginAudioProcessorEditor::resized()
     levelMeter.setBounds(header.removeFromRight(240));
 
     area.removeFromTop(6);
-    auto controls = area.removeFromLeft(280);
-    constexpr int rowHeight = 30;
-    auto row = [&](juce::Label& label, juce::Slider& slider)
+    const int pianoHeight = juce::jlimit(140, 260, area.getHeight() / 3);
+    pianoRoll.setBounds(area.removeFromTop(pianoHeight));
+
+    area.removeFromTop(10);
+    controlTabs.setBounds(area);
+
+    constexpr int labelWidth = 140;
+    constexpr int basicRowHeight = 38;
+    constexpr int advancedRowHeight = 22;
+
+    auto basicArea = basicControls.getLocalBounds().reduced(10, 8);
+    auto basicRow = [&](juce::Label& label, juce::Slider& slider, int height)
     {
-        auto line = controls.removeFromTop(rowHeight);
-        label.setBounds(line.removeFromLeft(120));
+        auto line = basicArea.removeFromTop(height);
+        label.setBounds(line.removeFromLeft(labelWidth));
         slider.setBounds(line);
     };
 
-    row(ampThreshLabel, ampThreshSlider);
-    row(ampScaleLabel, ampScaleSlider);
-    row(minVelocityLabel, minVelocitySlider);
-    row(delayLabel, delaySlider);
+    basicRow(ampThreshLabel, ampThreshSlider, basicRowHeight);
+    basicRow(ampScaleLabel, ampScaleSlider, basicRowHeight);
+    basicRow(minVelocityLabel, minVelocitySlider, basicRowHeight);
+    basicRow(delayLabel, delaySlider, basicRowHeight);
 
-    controls.removeFromTop(6);
-    auto advancedToggleRow = controls.removeFromTop(24);
-    advancedToggle.setBounds(advancedToggleRow.removeFromLeft(120));
-    scrollToggle.setBounds(advancedToggleRow.removeFromLeft(100));
+    basicArea.removeFromTop(8);
+    auto scrollRow = basicArea.removeFromTop(24);
+    scrollToggle.setBounds(scrollRow.removeFromLeft(100));
 
-    if (advancedVisible)
+    auto advancedArea = advancedControls.getLocalBounds().reduced(10, 8);
+    const int columnGap = 12;
+    auto leftColumn = advancedArea.removeFromLeft((advancedArea.getWidth() - columnGap) / 2);
+    advancedArea.removeFromLeft(columnGap);
+    auto rightColumn = advancedArea;
+
+    auto advancedRow = [&](juce::Rectangle<int>& column, juce::Label& label, juce::Slider& slider)
     {
-        controls.removeFromTop(6);
-        row(execFreqLabel, execFreqSlider);
-        row(initFreqLabel, initFreqSlider);
-        row(minFreqLabel, minFreqSlider);
-        row(maxFreqLabel, maxFreqSlider);
-        row(maxBinsLabel, maxBinsSlider);
-        row(medianLabel, medianSlider);
-        row(peakThreshLabel, peakThreshSlider);
-        row(downSampleLabel, downSampleSlider);
-        row(noteLengthLabel, noteLengthSlider);
-        row(decayLabel, decaySlider);
+        auto line = column.removeFromTop(advancedRowHeight);
+        label.setBounds(line.removeFromLeft(labelWidth));
+        slider.setBounds(line);
+    };
 
-        controls.removeFromTop(6);
-        auto toggleRow = controls.removeFromTop(24);
-        clarityToggle.setBounds(toggleRow.removeFromLeft(90));
-        midiThruToggle.setBounds(toggleRow.removeFromLeft(110));
-        freezeToggle.setBounds(toggleRow.removeFromLeft(80));
-        freezeIndicator.setBounds(toggleRow);
-    }
-    else
-    {
-        clarityToggle.setBounds({});
-        midiThruToggle.setBounds({});
-        freezeToggle.setBounds({});
-        freezeIndicator.setBounds({});
-    }
+    advancedRow(leftColumn, execFreqLabel, execFreqSlider);
+    advancedRow(leftColumn, initFreqLabel, initFreqSlider);
+    advancedRow(leftColumn, minFreqLabel, minFreqSlider);
+    advancedRow(leftColumn, maxFreqLabel, maxFreqSlider);
+    advancedRow(leftColumn, maxBinsLabel, maxBinsSlider);
 
-    area.removeFromLeft(12);
-    pianoRoll.setBounds(area);
-}
+    advancedRow(rightColumn, medianLabel, medianSlider);
+    advancedRow(rightColumn, peakThreshLabel, peakThreshSlider);
+    advancedRow(rightColumn, downSampleLabel, downSampleSlider);
+    advancedRow(rightColumn, noteLengthLabel, noteLengthSlider);
+    advancedRow(rightColumn, decayLabel, decaySlider);
 
-void TestPluginAudioProcessorEditor::setAdvancedVisible(bool shouldShow)
-{
-    advancedVisible = shouldShow;
-    advancedToggle.setToggleState(advancedVisible, juce::dontSendNotification);
-
-    initFreqLabel.setVisible(advancedVisible);
-    initFreqSlider.setVisible(advancedVisible);
-    execFreqLabel.setVisible(advancedVisible);
-    execFreqSlider.setVisible(advancedVisible);
-    minFreqLabel.setVisible(advancedVisible);
-    minFreqSlider.setVisible(advancedVisible);
-    maxFreqLabel.setVisible(advancedVisible);
-    maxFreqSlider.setVisible(advancedVisible);
-    maxBinsLabel.setVisible(advancedVisible);
-    maxBinsSlider.setVisible(advancedVisible);
-    medianLabel.setVisible(advancedVisible);
-    medianSlider.setVisible(advancedVisible);
-    peakThreshLabel.setVisible(advancedVisible);
-    peakThreshSlider.setVisible(advancedVisible);
-    downSampleLabel.setVisible(advancedVisible);
-    downSampleSlider.setVisible(advancedVisible);
-    noteLengthLabel.setVisible(advancedVisible);
-    noteLengthSlider.setVisible(advancedVisible);
-    decayLabel.setVisible(advancedVisible);
-    decaySlider.setVisible(advancedVisible);
-    clarityToggle.setVisible(advancedVisible);
-    midiThruToggle.setVisible(advancedVisible);
-    freezeToggle.setVisible(advancedVisible);
-    freezeIndicator.setVisible(advancedVisible);
+    rightColumn.removeFromTop(6);
+    auto toggleRow = rightColumn.removeFromTop(24);
+    clarityToggle.setBounds(toggleRow.removeFromLeft(90));
+    midiThruToggle.setBounds(toggleRow.removeFromLeft(110));
+    freezeToggle.setBounds(toggleRow.removeFromLeft(80));
+    freezeIndicator.setBounds(toggleRow);
 }
 
 void TestPluginAudioProcessorEditor::timerCallback()
@@ -230,6 +202,7 @@ void TestPluginAudioProcessorEditor::timerCallback()
     levelMeter.setRMS(audioProcessor.getRmsLevel());
 
     const bool frozen = audioProcessor.getValueTreeState().getRawParameterValue("freeze")->load() > 0.5f;
-    freezeIndicator.setVisible(frozen && advancedVisible);
+    const bool advancedTabActive = (controlTabs.getCurrentTabIndex() == 1);
+    freezeIndicator.setVisible(frozen && advancedTabActive);
     pianoRoll.setFrozen(frozen);
 }

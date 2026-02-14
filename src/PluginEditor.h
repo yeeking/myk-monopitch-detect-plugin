@@ -51,6 +51,10 @@ private:
     juce::Slider noteLengthSlider;
     juce::Slider decaySlider;
 
+    juce::TabbedComponent controlTabs { juce::TabbedButtonBar::TabsAtTop };
+    juce::Component basicControls;
+    juce::Component advancedControls;
+
     juce::Label minFreqLabel;
     juce::Label initFreqLabel;
     juce::Label maxFreqLabel;
@@ -66,7 +70,6 @@ private:
     juce::Label noteLengthLabel;
     juce::Label decayLabel;
 
-    juce::ToggleButton advancedToggle;
     juce::ToggleButton scrollToggle;
     juce::ToggleButton clarityToggle;
     juce::ToggleButton midiThruToggle;
@@ -91,9 +94,6 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> clarityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> midiThruAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment;
-
-    void setAdvancedVisible(bool shouldShow);
-    bool advancedVisible = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TestPluginAudioProcessorEditor)
 };

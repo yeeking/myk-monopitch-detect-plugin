@@ -7,7 +7,7 @@ PianoRollComponent::PianoRollComponent()
 {
     setOpaque(true);
     setWantsKeyboardFocus(true);
-    startTimerHz(60);
+    startTimerHz(10);
 }
 
 void PianoRollComponent::noteOn(int note, float velocity, double timeSeconds)
