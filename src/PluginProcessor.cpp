@@ -174,7 +174,7 @@ void TestPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     // pendingDetectionSample = -1;
     noteOnTimestamps.fill(0);
     noteOffTimestamps.fill(0);
-    noteOnRequested.fill(false);
+    noteDetected.fill(false);
     noteOffNeeded.fill(false);
 
     
@@ -279,6 +279,8 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     const float rms = std::sqrt(rmsSum / static_cast<float>(numSamples));
     rmsLevel.store(rms, std::memory_order_relaxed);
+    
+   
 
     const int64 blockStartSample = sampleCounter;
     const int64 blockEndSample = sampleCounter + numSamples;
@@ -319,7 +321,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             currentActiveNote != -1){ // was playing a note
                 playerState = InstrumentState::NoteEndedNowSilentSendNoteOff;  
                 // reset it 
-                noteOnRequested[currentActiveNote] = false; 
+                noteDetected[currentActiveNote] = false; 
             
                 noteOffToSend = currentActiveNote; 
                 noteOffSampleOffset = getBlockSize() - 1;// give it some grace at the end 
@@ -346,7 +348,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         if (currentActiveNote != -1 &&// was playing
             newNoteMidiNum != currentActiveNote){// note changed 
                 // DBG("Note switch from " << currentActiveNote << " to " << newNoteMidiNum );
-                noteOnRequested[currentActiveNote] = false; // reset this so i can request it next time i get this note
+                noteDetected[currentActiveNote] = false; // reset this so i can request it next time i get this note
                 playerState = InstrumentState::NoteAfterOtherNote;  
                 // reset note start time for new note 
                 currentActiveNoteStartSample = blockStartSample + newNoteData.sampleOffset; 
@@ -365,16 +367,19 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
                 // DBG("held note "<< currentActiveNote << "  length so far " << timeSinceNoteStartSamples << " of " << minAllowedNoteLenSamples);
 
                 if (timeSinceNoteStartSamples > minAllowedNoteLenSamples){
-                    if (noteOnRequested[currentActiveNote]){// already requested a note on
+                    if (noteDetected[currentActiveNote]){// already requested a note on
                         playerState = InstrumentState::NoteHeldNoteOnSent; 
                         // DBG("I think I sent note " << currentActiveNote);
                     }
-                    else{// its long enough but we've not requested a note on yet 
+                    else{// its long enough and we've not requested a note on yet 
                         // DBG("Time to send a note on " << currentActiveNote << " set request note to true");
                         playerState = InstrumentState::NoteLongEnoughSendNoteOn; 
-                        noteOnRequested[currentActiveNote] = true; 
+                        noteDetected[currentActiveNote] = true; 
                         noteOnToSend = currentActiveNote;
                         noteOnSampleOffset = newNoteData.sampleOffset;
+                        DBG("RMS " << rms);
+                        velToPlay = juce::jlimit(minVelocityParam, 127, static_cast<int>(rms * ampScale * 127.0f));
+
                     }
                 }
         } 
@@ -393,8 +398,8 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             break;
         }
         case InstrumentState::NoteAfterOtherNote:{
-            if (lastNoteOff == noteOffToSend){
-                // break; 
+            if (!noteOffNeeded[noteOffToSend]){// note is not on
+                break; 
             }
             // DBG("NoteAfterOtherNote"); 
             // only if we actually sent an on for this note
@@ -408,7 +413,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             eventOff.timeSeconds = blockStartSeconds + static_cast<double>(noteOffSampleOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOff);
             lastNoteOff = noteOffToSend;
-
+            noteOffNeeded[noteOffToSend] = false; 
 
             // }            
             break;
@@ -423,7 +428,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         case InstrumentState::NoteLongEnoughSendNoteOn:{
             // DBG("NoteLongEnoughSendNoteOn");
             // DBG("ON " << noteOnToSend << " rms " << rmsSum);
-            juce::uint8 vel = static_cast<juce::uint8>(64);
+            juce::uint8 vel = static_cast<juce::uint8>(velToPlay);
 
             midiMessages.addEvent(juce::MidiMessage::noteOn(1, noteOnToSend, vel), noteOnSampleOffset);
             // tell the piano roll
@@ -433,6 +438,8 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             eventOn.noteOn = true;
             eventOn.timeSeconds = blockStartSeconds + static_cast<double>(noteOnSampleOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOn);
+            noteOffNeeded[noteOnToSend] = true; 
+
             break;
         }
         case InstrumentState::NoteHeldNoteOnSent:{
@@ -441,8 +448,11 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         }
         case InstrumentState::NoteEndedNowSilentSendNoteOff:{
             // DBG("NoteEndedNowSilent"); 
-             if (lastNoteOff == noteOffToSend){
+            // if (lastNoteOff == noteOffToSend){
                 // break; 
+            // }
+            if (!noteOffNeeded[noteOffToSend]){// not on - don't need note off
+                break; 
             }
             // DBG("OFF " << noteOffToSend << "\n\n");
 
@@ -454,8 +464,8 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             eventOff.noteOn = false;
             eventOff.timeSeconds = blockStartSeconds + static_cast<double>(noteOffSampleOffset) / getSampleRate();
             pushNoteEventFromAudioThread(eventOff);
-            lastNoteOff = noteOffToSend;
-            // lastNoteOffSeconds =  eventOff.timeSeconds; 
+            noteOffNeeded[noteOffToSend] = false; 
+
             break;
         }
     }
