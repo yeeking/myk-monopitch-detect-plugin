@@ -96,7 +96,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     levelMeter.setFrameRateHz(15);
     levelMeter.setDecaySeconds(1.5f);
 
-    setSize (640,720);
+    setSize (640,500);
     startTimerHz(10);
 }
 
@@ -121,15 +121,18 @@ void TestPluginAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor..
-    auto area = getLocalBounds().reduced(12);
-    auto header = area.removeFromTop(32);
+    auto fullArea = getLocalBounds();
+    auto header = fullArea.removeFromTop(32).reduced(12, 0);
     levelMeter.setBounds(header.removeFromRight(240));
 
-    area.removeFromTop(6);
-    const int pianoHeight = juce::jlimit(140, 260, area.getHeight() / 3);
-    pianoRoll.setBounds(area.removeFromTop(pianoHeight));
+    fullArea.removeFromTop(6);
+    // const int pianoHeight = juce::jlimit(170, 320, fullArea.getHeight() / 3);
+    const int pianoHeight = fullArea.getHeight() / 2;
+    
+    pianoRoll.setBounds(fullArea.removeFromTop(pianoHeight));
 
-    area.removeFromTop(10);
+    fullArea.removeFromTop(10);
+    auto area = fullArea.reduced(12, 0);
     controlTabs.setBounds(area);
 
     constexpr int labelWidth = 140;

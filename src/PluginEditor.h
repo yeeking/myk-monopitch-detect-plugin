@@ -10,7 +10,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include "PianoRollComponent.h"
+#include "OpenGLPianoRollComponent.h"
 #include "LevelMeterComp.h"
 
 //==============================================================================
@@ -33,7 +33,7 @@ private:
     // access the processor object that created it.
     TestPluginAudioProcessor& audioProcessor;
 
-    PianoRollComponent pianoRoll;
+    OpenGLPianoRollComponent pianoRoll;
     LevelMeterComp levelMeter;
 
     juce::Slider minFreqSlider;

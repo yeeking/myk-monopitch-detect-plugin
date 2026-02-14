@@ -89,6 +89,8 @@ target_sources(myk-mono-pitchtracker
     src/BasicPitchConstants.h
     src/LevelMeterComp.cpp
     src/LevelMeterComp.h
+    src/OpenGLPianoRollComponent.cpp
+    src/OpenGLPianoRollComponent.h
     src/PluginEditor.cpp
     src/PluginProcessor.cpp
     src/PianoRollComponent.cpp
@@ -137,6 +139,7 @@ target_link_libraries(myk-mono-pitchtracker
     PRIVATE
         # AudioPluginData           # If we'd created a binary data target, we'd link to it here
         juce::juce_audio_utils
+        juce::juce_opengl
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
