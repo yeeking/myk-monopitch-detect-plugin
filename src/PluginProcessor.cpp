@@ -273,14 +273,13 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
             mixed += buffer.getReadPointer(channel)[sample];
 
         mixed *= channelScale;
-        monoBuffer[static_cast<size_t>(sample)] = mixed;
+        monoBuffer[static_cast<size_t>(sample)] = mixed * ampScale;
         rmsSum += mixed * mixed;
     }
 
     const float rms = std::sqrt(rmsSum / static_cast<float>(numSamples));
     rmsLevel.store(rms, std::memory_order_relaxed);
     
-   
 
     const int64 blockStartSample = sampleCounter;
     const int64 blockEndSample = sampleCounter + numSamples;
@@ -378,7 +377,7 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
                         noteOnToSend = currentActiveNote;
                         noteOnSampleOffset = newNoteData.sampleOffset;
                         DBG("RMS " << rms);
-                        velToPlay = juce::jlimit(minVelocityParam, 127, static_cast<int>(rms * ampScale * 127.0f));
+                        velToPlay = juce::jlimit(minVelocityParam, 127, static_cast<int>(rms  * 127.0f));
 
                     }
                 }

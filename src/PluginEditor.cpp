@@ -97,12 +97,12 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
 
     pianoRoll.setTimeWindowSeconds(8.0);
     pianoRoll.setScrollEnabled(true);
-    levelMeter.setFrameRateHz(30);
+    levelMeter.setFrameRateHz(15);
     levelMeter.setDecaySeconds(1.5f);
     setAdvancedVisible(false);
 
-    setSize (960, 560);
-    startTimerHz(60);
+    setSize (500, 500);
+    startTimerHz(10);
 }
 
 TestPluginAudioProcessorEditor::~TestPluginAudioProcessorEditor()
