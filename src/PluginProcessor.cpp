@@ -234,7 +234,6 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     pitchSettings = readSettings(parameters);
 
     const bool midiThru = parameters.getRawParameterValue(paramMidiThru)->load() > 0.5f;
-    const bool freeze = parameters.getRawParameterValue(paramFreeze)->load() > 0.5f;
 
     const float decayTimeSec = parameters.getRawParameterValue(paramDecayTime)->load();
     const float maxNoteLengthSec = parameters.getRawParameterValue(paramNoteLengthMs)->load();
@@ -254,23 +253,24 @@ void TestPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     if (!midiThru)
         midiMessages.clear();
 
-    if (freeze)
-    {
-        sampleCounter += numSamples;
-        return;
-    }
-
     if (static_cast<int>(monoBuffer.size()) < numSamples)
         monoBuffer.assign(static_cast<size_t>(numSamples), 0.0f);
 
     const float channelScale = 1.0f / static_cast<float>(totalNumInputChannels);
     float rmsSum = 0.0f;
 
+    constexpr int maxCachedInputChannels = 64;
+    std::array<const float*, maxCachedInputChannels> readPointers {};
+    const int numCachedInputChannels = juce::jmin(totalNumInputChannels, maxCachedInputChannels);
+    jassert(totalNumInputChannels <= maxCachedInputChannels);
+    for (int channel = 0; channel < numCachedInputChannels; ++channel)
+        readPointers[static_cast<size_t>(channel)] = buffer.getReadPointer(channel);
+
     for (int sample = 0; sample < numSamples; ++sample)
     {
         float mixed = 0.0f;
-        for (int channel = 0; channel < totalNumInputChannels; ++channel)
-            mixed += buffer.getReadPointer(channel)[sample];
+        for (int channel = 0; channel < numCachedInputChannels; ++channel)
+            mixed += readPointers[static_cast<size_t>(channel)][sample];
 
         mixed *= channelScale;
         mixed *= ampScale; 
@@ -678,7 +678,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TestPluginAudioProcessor::cr
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramNoteLengthMs, "Max Note Length (s)", juce::NormalisableRange<float>(3.0f, 10.0f, 0.1f), 5.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(paramDecayTime, "Decay Time (s)", juce::NormalisableRange<float>(0.0f, 0.5f, 0.001f), 0.001f));
     params.push_back(std::make_unique<juce::AudioParameterBool>(paramMidiThru, "MIDI Thru", false));
-    params.push_back(std::make_unique<juce::AudioParameterBool>(paramFreeze, "Freeze", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(paramFreeze, "GUI Freeze", false));
 
     return { params.begin(), params.end() };
 }

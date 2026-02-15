@@ -57,7 +57,7 @@ TestPluginAudioProcessorEditor::TestPluginAudioProcessorEditor (TestPluginAudioP
     scrollToggle.setToggleState(true, juce::dontSendNotification);
     clarityToggle.setButtonText("Clarity");
     midiThruToggle.setButtonText("MIDI Thru");
-    freezeToggle.setButtonText("Freeze");
+    freezeToggle.setButtonText("GUI Freeze");
     freezeIndicator.setText("Frozen", juce::dontSendNotification);
     freezeIndicator.setColour(juce::Label::textColourId, juce::Colour(0xFFE8C35E));
     freezeIndicator.setJustificationType(juce::Justification::centredRight);
@@ -191,6 +191,21 @@ void TestPluginAudioProcessorEditor::resized()
 
 void TestPluginAudioProcessorEditor::timerCallback()
 {
+    const bool frozen = audioProcessor.getValueTreeState().getRawParameterValue("freeze")->load() > 0.5f;
+    const bool basicTabActive = (controlTabs.getCurrentTabIndex() == 0);
+    freezeIndicator.setVisible(frozen && basicTabActive);
+    pianoRoll.setFrozen(frozen);
+
+    if (frozen)
+    {
+        // Keep the FIFO clear while frozen so UI does not jump after unfreezing.
+        std::array<TestPluginAudioProcessor::NoteEvent, 128> discardedEvents {};
+        while (audioProcessor.pullNoteEvents(discardedEvents.data(), static_cast<int>(discardedEvents.size())) > 0)
+        {
+        }
+        return;
+    }
+
     std::array<TestPluginAudioProcessor::NoteEvent, 128> events {};
     const int count = audioProcessor.pullNoteEvents(events.data(), static_cast<int>(events.size()));
     for (int i = 0; i < count; ++i)
@@ -203,9 +218,4 @@ void TestPluginAudioProcessorEditor::timerCallback()
     }
 
     levelMeter.setRMS(audioProcessor.getRmsLevel());
-
-    const bool frozen = audioProcessor.getValueTreeState().getRawParameterValue("freeze")->load() > 0.5f;
-    const bool basicTabActive = (controlTabs.getCurrentTabIndex() == 0);
-    freezeIndicator.setVisible(frozen && basicTabActive);
-    pianoRoll.setFrozen(frozen);
 }
